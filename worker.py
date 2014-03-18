@@ -8,11 +8,13 @@ import json
 import logging
 import sys
 import time
+import dateutil.parser
 
+# global logger
 db_auth_log = None #Mongo users DB auth log
 db_users = None #Mongo users DB
 db_user_ip = None
-logger = None
+# logger = None
 
 def processUserRegistration(ch, method, properties, body):
     """
@@ -26,20 +28,25 @@ def processUserRegistration(ch, method, properties, body):
     request = json.loads(body)
     logger.debug("Got user %s on address %s" % (request['username'], request['ip_address']))
     
+    authed_time = dateutil.parser.parse(request['timestamp'])
+    
     #A user auth has come in.  Log it in our historical records table
     db_auth_log.insert( {
         'username': request['username'],
-        'authed_time': request['timestamp'],
+        'authed_time': authed_time,
         'method': request['method'],
         'ip_address': request['ip_address'],
     } )
     
     db_user_ip.update( {
-        '_id': request['ip_address'],
-        'username': request['username'],
-        'authed_time': request['timestamp'],
-        'method': request['method'],
-    }, upsert=True)
+            '_id': request['ip_address']
+        },
+        {
+            '_id': request['ip_address'],
+            'username': request['username'],
+            'authed_time': authed_time,
+            'method': request['method'],
+        }, upsert=True)
 
     #Ack the processing of this transaction
     ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -53,9 +60,10 @@ def main(settings):
     global db_auth_log
     global db_users
     global db_user_ip
-    global logger
+    # global logger
     
-    
+    logger.debug("Seting Herbert User-Auth-Writer")
+        
     #Setup the MongoDB Connection
     mongo_client = MongoClient(settings['mongodb_server'], 27017)
     db = mongo_client[settings['mongodb_database']]
@@ -84,6 +92,7 @@ def main(settings):
 if __name__ == "__main__":
     #Load up the settings from disk
     logging.basicConfig()
+    # global logger
     
     settings = {}
     for setting in open('settings.txt', 'r').read().split('\n'):
@@ -95,9 +104,9 @@ if __name__ == "__main__":
     
     #If we're in debug/testing.. just run and die
     logger = logging.getLogger('worker')
-    if 'mode' in settings and settings['mode'] == 'debug':
+    if 'mode' in settings and 'debug' in settings['mode']:
         logger.setLevel(logging.DEBUG)
-    elif 'mode' in settings and setting['mode' == 'test']:
+    if 'mode' in settings and 'test' in settings['mode']:
         logger.setLevel(logging.INFO)
         main(settings)
         sys.exit(0)
