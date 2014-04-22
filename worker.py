@@ -76,7 +76,8 @@ def main(settings):
     durable=True
 
     #Setup the message queue
-    amqp_connection = pika.BlockingConnection(pika.ConnectionParameters(settings['amqp_server']))
+    credentials = pika.PlainCredentials(settings['amqp_username'], settings['amqp_password'])
+    amqp_connection = pika.BlockingConnection(pika.ConnectionParameters(settings['amqp_server'],credentials=credentials))
     amqp_channel = amqp_connection.channel()
     amqp_channel.exchange_declare(exchange=settings['amqp_exchange'] ,type='fanout')
     amqp_channel.queue_declare(queue=settings['amqp_queue'], durable=durable, exclusive=exclusive)
